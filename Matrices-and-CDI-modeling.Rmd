@@ -1,0 +1,327 @@
+---
+title: "Matrices and CDI modeling"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# tinytex::install_tinytex()
+```
+
+```{r}
+setwd("~/Documents/Hunter College/Spring 2021/Stat 707/HW")
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(GGally)
+```
+
+# 6.27. In a small-scale regression study, the following data were obtained:
+
+```{r}
+# Make Z matrix from textbook
+data <- matrix(c(7,4,16,3,21,8,33,41,7,49,5,31,42,33,75,28,91,55), nrow = 3, ncol = 6, byrow = TRUE); data
+```
+
+Assume that regression model (6.1) with independent normal error terms is appropriate. Using matrix methods, obtain (a) b; (b) e; (c) H; (d) SSR; (e) $s^2\{b\}$; (f) $\hat{Y}_h$ when $X_{h1}$ = 10, $X_{h2}$ = 30; (g) $s^2\{\hat{Y_h}\}$ when $X_{h1}$ = 10, $X_{h2}$ = 30.
+
+## (a) Estimated coefficients
+$b = (X'X) ^-1 * X'Y$
+
+```{r include=FALSE}
+# Separate X and Y matrices
+Y <- matrix(c(42,33,75,28,91,55), nrow = 6, ncol = 1, byrow = TRUE); Y
+X <- matrix(c(1,7,33,1,4,41,1,16,7,1,3,49,1,21,5,1,8,31), ncol = 3, byrow = T); X
+
+# Transpose of X matrix
+X_t <- t(X); X_t
+
+# Transposed X times X
+X_tX <- X_t %*% X; X_tX
+
+# Transposed X times Y
+X_tY <- X_t %*% Y; X_tY
+
+# Inverse of X'X
+X_tX_inv <- solve((X_tX)); X_tX_inv
+```
+
+```{r}
+# (X'X)^-1 times X'Y
+b <- X_tX_inv %*% X_tY ; b
+```
+
+```{r}
+# Check using Linear model 
+
+# Transpose matrix
+t_data <- t(data)
+Z <- as.data.frame(t_data)
+
+lm <- lm(V3 ~ V1 + V2, data = Z); lm
+```
+
+## (b) Vector of residuals
+$e = Y - Xb$
+
+```{r}
+e <- Y - (X %*% b); e
+```
+
+## (c) Hat matrix
+$H = X(X'X)^-1 * X'$
+
+```{r}
+H <- X %*% X_tX_inv %*% X_t; H
+```
+
+## (d) Sum of squares of regression
+$SSR = (b'X' - (1/n)*Y'J) Y$
+
+```{r include=FALSE}
+# n = 6
+
+# Create J matrix
+J <-  matrix(1, 6, 6)
+
+# Transpose of b
+b_t <- t(b)
+
+# Transpose of Y
+Y_t <- t(Y)
+
+# Multiplication
+b_tX_t <- b_t %*% X_t; b_tX_t
+
+Y_tJ <- Y_t %*% J; Y_tJ
+z <- (1/6) %*%Y_tJ; z
+
+# Subtraction
+a <- b_tX_t - z; a
+```
+
+```{r}
+# Multiply whole thing by Y
+SSR <- a %*% Y; SSR 
+```
+
+```{r}
+# Check using linear model
+anova(lm)
+# sum squared V1 + V2 should add up to 3009.926
+```
+
+## (e) Variance-covariance matrix of estimated coefficients
+$s^2\{b\} = MSE(X'X)^-1$
+
+```{r}
+# SSE = Y'Y - b'X'Y; (sum of squares of error)
+SSE <- (Y_t %*% Y) - (b_t %*% X_t %*% Y); SSE
+# SSE should equal the residuals sum sq of the anova test
+
+# MSE = SSE/(n-p); (mean square error)
+MSE <- SSE / (6-3); MSE
+# MSE should equal the residuals mean sq of the anova test
+```
+
+```{r}
+# s^2{b}
+s_sq_b <- 20.69118 * X_tX_inv; s_sq_b
+```
+
+## (f) Point estimate
+$\hat{Y}_h = X_h'b$ when $X_{h1}$ = 10, $X_{h2}$ = 30
+
+```{r include=FALSE}
+# Create vector
+X_h <- cbind(c(1, 10, 30)); X_h
+X_h_t <- t(X_h); X_h_t
+```
+
+```{r}
+Yhat_h <- X_h_t %*% b; Yhat_h 
+```
+
+## (g) Estimated variance
+$s^2\{\hat{Y_h}\} = X_h'*s^2\{b\}*X_h$ when $X_{h1}$ = 10, $X_{h2}$ = 30
+\
+```{r}
+s_sq_Yhat_h <- X_h_t %*% s_sq_b %*% X_h; s_sq_Yhat_h
+```
+
+# 6.28. Refer to the CDI data set in Appendix C.2. You have been asked to evaluate two alternative models for predicting the number of active physicians (Y) in a CDI. Proposed model I includes as predictor variables total population (X1), land area (X2), and total personal income (X3). Proposed model II includes as predictor variables population density (X1, total population divided by land area), percent of population greater than 64 years old (X2), and total personal income (X3).
+
+```{r}
+# import county demographic information (CDI)
+CDI <- read.csv("CDI_Data.csv", header = F)
+
+names(CDI) <- c("ID", "county", "state", "land_area", "total_pop", "precent_pop_18_34", "percent_pop_65", "num_physicians", "n_hospital_beds", "total_crimes", "percent_hs_grads", "percent_bach", "percent_pov", "percent_unemploy", "per_capita", "total_income", "geographic_region")
+
+# create X1 variable, total population divided by land area
+CDI$pop_density <- CDI$total_pop/CDI$land_area
+```
+
+## a. Prepare a boxplot for each of the predictor variables. What noteworthy information is provided by your plots?
+
+```{r}
+par(mfrow=c(2,2))
+
+p1 <- ggplot(data = CDI, mapping = aes(x = total_pop)) + geom_boxplot() + labs(x = "Total Population")
+p2 <- ggplot(data = CDI, mapping = aes(x = land_area)) + geom_boxplot() + labs(x = "Land Area")
+p3 <- ggplot(data = CDI, mapping = aes(x = total_income)) + geom_boxplot() + labs(x = "Total Personal Income")
+p4 <- ggplot(data = CDI, mapping = aes(x = pop_density)) + geom_boxplot() + labs(x = "Population Density")
+p5 <- ggplot(data = CDI, mapping = aes(x = percent_pop_65)) + geom_boxplot() + labs(x = "Percent of Population 65 or Older")
+
+grid.arrange(p1, p2, p3, p4, p5, ncol = 2)
+```
+
+The boxplots above show us that total population, land area, total personal income, and population density are right skewed. Majority of the data for these predictor variables are concentrated to the left of the graph, with many outliers to the right. Only the predictor variable that has a more normal distribution of data is percent of population 65 or older. 
+
+## b. Obtain the scatter plot matrix and the correlation matrix for each proposed model. Summarize the information provided.
+
+Matrices for Model 1
+
+```{r message=FALSE}
+# Combined scatter plot matrix, density plot, and correlation matrix
+
+# Matrices for Model 1
+ggpairs(CDI, columns = c(4,5,16,8),  title = "Matrics for Model 1")
+
+# Matrices for Model 2
+ggpairs(CDI, columns = c(18,7,16,8), title = "Matrics for Model 2")
+```
+
+The pairwise scatter plot and correlation matrix allow us to see the relationship between any two variables from the CDI dataset. We see that for model 1, we see a highly positive linear correlation between total population and total income, total population and number of active physicians, and total income and number of active physicians. For model 2, we see a highly positive linear correlation between total income and number of active physicians. There are minor positive correlations between number of active physicians and population density as well as total income and population density.
+
+## c. For each proposed model, fit the first-order regression model (6.5) with three predictor variables.
+
+```{r}
+# For model 1
+m1_mod <- glm(num_physicians ~ total_pop + land_area + total_income, data = CDI); m1_mod
+
+# For model 2
+m2_mod <- glm(num_physicians ~ pop_density + percent_pop_65 + total_income, data = CDI); m2_mod
+```
+
+## d. Calculate R^2 for each model. Is one model clearly preferable in terms of this measure?
+
+```{r}
+m1_r_sq <- with(summary(m1_mod), 1 - deviance/null.deviance); m1_r_sq
+m2_r_sq <- with(summary(m2_mod), 1 - deviance/null.deviance); m2_r_sq
+```
+
+There is clearly no preferable model in terms of $R^2$ because both models have similar values. The data from both models are very close to the fitted regression line. 
+
+## e. For each model, obtain the residuals and plot them against Y, and each of the three predictor variables. Also prepare a normal probability plot for each of the two fitted models. Interpret your plots and state your findings. Is one model clearly preferable in terms of appropriateness?
+
+Notes: for part (e), except replace the normal probability plot, with the following (i) Produce a QQ-plot (ii) Perform 2 tests for normality to determine if the residuals are normally distributed. Can you identify 2 tests for normality?
+
+Residuals for Model 1
+
+```{r}
+CDI$m1_res <- residuals(m1_mod)
+CDI$m1_pred <- predict(m1_mod)
+
+par(mfrow=c(2,2))
+
+p1 <- CDI %>% 
+  ggplot(aes(x = m1_pred, y = m1_res)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  labs(x = "Fitted Values", y = "Model 1 Residuals")
+
+p2 <- CDI %>% 
+  ggplot(aes(x = total_pop, y = m1_res)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  labs(x = "Total Population", y = "Model 1 Residuals")
+
+p3 <- CDI %>% 
+  ggplot(aes(x = land_area, y = m1_res)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  labs(x = "Land Area", y = "Model 1 Residuals")
+
+p4 <- CDI %>% 
+  ggplot(aes(x = total_income, y = m1_res)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  labs(x = "Total Personal Income", y = "Model 1 Residuals")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+In a residual analysis, we want the data points to follow the dotted line. However, all of our residual plots for model 1 against the fitted values and predictors are skewed to the right. However, we should take into consideration that our original data was also skewed.
+
+Residuals for Model 2
+
+```{r}
+CDI$m2_res <- residuals(m2_mod)
+CDI$m2_pred <- predict(m2_mod)
+
+par(mfrow=c(2,2))
+
+p1 <- CDI %>% 
+  ggplot(aes(x = m2_pred, y = m2_res)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  labs(x = "Fitted Values", y = "Model 2 Residuals")
+
+p2 <- CDI %>% 
+  ggplot(aes(x = pop_density, y = m2_res)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  labs(x = "Population Density", y = "Model 2 Residuals")
+
+
+p3 <- CDI %>% 
+  ggplot(aes(x = percent_pop_65, y = m2_res)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  labs(x = "Percent of Population 65 or Older", y = "Model 2 Residuals")
+
+p4 <- CDI %>% 
+  ggplot(aes(x = total_income, y = m2_res)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  labs(x = "Total Personal Income", y = "Model 2 Residuals")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+Our residual plots for model 2 against the fitted values, population density, and total personal income are similar to the residual plots in model 1. However, the residuals seem uncorrelated with the predictor percent of population 65 or older because the data points are evenly distributed.
+
+Normality Plots for Model 1
+
+```{r}
+# QQ-plot
+plot(m1_mod,which = 2)
+
+# Shapiro-Wilk test
+shapiro.test(CDI$m1_res)
+
+# Kolmogorov-Smirnov test
+ks.test(CDI$m1_res,CDI$num_physicians)
+```
+
+Normality Plots for Model 2
+
+```{r}
+# QQ-plot
+plot(m2_mod,which = 2)
+
+# Shapiro-Wilk test
+shapiro.test(CDI$m2_res)
+
+# Kolmogorov-Smirnov test
+ks.test(CDI$m2_res,CDI$num_physicians)
+```
+
+The normal QQ plots assume that the errors are normally distributed, and if they are it should follow a normal distribution dotted line. The normal QQ plots for both model 1 and 2 deviate from the dotted line at both tails, suggesting some skewness. However, model 1 deviates a lot quicker from normal distribution on the right tail compared to that of model 2. 
+
+The Shapiro-Wilk test examines if a model is normally distributed. It overlaps a normal curve over the observed distribution and computes the percentage of which our model overlaps with it. The null hypothesis is that the data are normally distributed. Since both model 1 and model 2 have a p-value of less than the alpha level of 0.05, we can reject the null hypothesis. 
+
+The Kolmogorov-Smirnov (K-S) test examines if scores are likely to follow a distribution, in this case a normal distribution. The D statistic measures absolute max distance between the cumulative distribution function of the observed and normal curves. The closer D is to 0 the more likely it is that the two samples were drawn from the same distribution. For both model 1 and 2, we get a D statistic of approximately 0.74. And given that they both also have a p-value of less than 0.05, we can reject the null hypothesis that either model is normally distributed.
